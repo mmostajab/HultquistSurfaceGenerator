@@ -1,0 +1,43 @@
+FoamFile
+{
+	version 2.0;
+	format ascii;
+	class polyBoundaryMesh;
+	location "";
+	object boundary;
+}
+
+
+
+
+4
+(
+wall_slip
+{
+type wall;
+startFace 4136763;
+nFaces 14442;
+}
+
+wall
+{
+type wall;
+startFace 4151205;
+nFaces 33927;
+}
+
+outlet
+{
+type patch;
+startFace 4185132;
+nFaces 1832;
+}
+
+inlet
+{
+type patch;
+startFace 4186964;
+nFaces 1657;
+}
+
+)
