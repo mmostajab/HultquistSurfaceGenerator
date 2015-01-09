@@ -45,7 +45,7 @@ StreamTracer::StreamTracer()
     // Default seed plane parameters
     m_parameters.seedPlaneSize        = 0.2f;
     m_parameters.seedPlaneCenter      = glm::vec3(0.0f, 0.0f, 0.0f);
-    // m_parameters.seedPlaneOrientation = glm::quat(0.0f, 0.0f, 0.0f, 1.0f);
+    m_parameters.seedPlaneOrientation = glm::quat(0.0f, 0.0f, 0.0f, 1.0f);
 }
 
 StreamTracer::~StreamTracer()
@@ -121,14 +121,12 @@ void StreamTracer::loadOpenFOAM(std::string filename)
     saveBinary(filename + ".bin");
 }
 
-void StreamTracer::exportCellsOSG()
-{
-    
+std::vector<glm::vec3> StreamTracer::getStreamLines() {
+    return m_streamLines;
 }
 
-void StreamTracer::exportGlyphsOSG()
-{
-
+std::vector<glm::vec3> StreamTracer::getStreamColors() {
+    return m_streamColors;
 }
 
 void StreamTracer::computeAccel()
@@ -181,11 +179,11 @@ void StreamTracer::computeStreamlines()
 {
     clock_t streamComputation_start = clock();
 
-    glm::vec3 xAxis;
-    glm::vec3 yAxis;
+    glm::vec3 xAxis(1.0f, 0.0f, 0.0f);
+    glm::vec3 yAxis(0.0f, 1.0f, 0.0f);
 
-    //m_parameters.seedPlaneOrientation.multVec(glm::vec3(1,0,0), xAxis);
-    //m_parameters.seedPlaneOrientation.multVec(glm::vec3(0,1,0), yAxis);
+    xAxis = (m_parameters.seedPlaneOrientation * xAxis);
+    yAxis = (m_parameters.seedPlaneOrientation * yAxis);
 
     //if (!cont_seeding)
     //	srand(1);
