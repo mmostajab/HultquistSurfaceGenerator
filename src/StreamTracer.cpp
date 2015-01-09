@@ -40,7 +40,6 @@ StreamTracer::StreamTracer()
     m_parameters.traceStepSize        = 0.001f;
     m_parameters.traceMaxSteps        = 10000;
     m_parameters.traceMaxSeeds        = 1000;
-    m_parameters.traceContSeeding     = false;
 
     // Default seed plane parameters
     m_parameters.seedPlaneSize        = 0.2f;
@@ -307,8 +306,11 @@ void StreamTracer::traceStreamline(glm::vec3 seed, float stepsize, std::vector<g
     }
 }
 
-bool StreamTracer::seedIsValid(glm::vec3 seed)
-{
+void StreamTracer::computeStreamsurfaces() {
+
+}
+
+bool StreamTracer::seedIsValid(glm::vec3 seed) {
     size_t i, j, k;
     return seedIsValid(seed, i, j, k);
 }

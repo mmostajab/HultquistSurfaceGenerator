@@ -49,10 +49,9 @@ private:
     static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
 
     static bool m_controlKeyHold;
-    static double xprevcursorpos, yprevcursorpos;
 
 private:
-    GLFWwindow* m_window;
+    static GLFWwindow* m_window;
     static AntTweakBarGUI m_gui;
     glm::mat4 m_projmat, m_viewmat, m_worldmat;
     static unsigned int m_width, m_height;

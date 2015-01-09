@@ -38,9 +38,7 @@ public:
 
     void computeAccel();
     void computeStreamlines();
-
-    void exportGlyphsOSG();
-    void exportCellsOSG();
+    void computeStreamsurfaces();
 
     struct Parameters
     {
@@ -51,7 +49,6 @@ public:
         float           traceStepSize;
         unsigned int    traceMaxSteps;
         unsigned int    traceMaxSeeds;
-        bool		    traceContSeeding;
 
         // Seeding plane
         float			seedPlaneSize;
@@ -62,13 +59,12 @@ public:
     void getParameters( Parameters &parameters );
     void setParameters( const Parameters &paramters );
 
-    bool loadBinary( std::string filename );
-    bool saveBinary( std::string filename );
-
     std::vector<glm::vec3> getStreamLines();
     std::vector<glm::vec3> getStreamColors();
 
 private:
+    bool loadBinary(std::string filename);
+    bool saveBinary(std::string filename);
 
     void traceStreamline(glm::vec3 seed, float stepsize, std::vector<glm::vec3> &streamLines, std::vector<glm::vec3> &streamColors, std::vector<glm::vec3> &streamTexCoords);
     bool seedIsValid(glm::vec3 seed);

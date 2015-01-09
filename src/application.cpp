@@ -11,12 +11,11 @@
 #include <GL/glew.h>
 
 // Static Members
+GLFWwindow*     Application::m_window = 0;
 AntTweakBarGUI  Application::m_gui;
 unsigned int    Application::m_width = 0;
 unsigned int    Application::m_height = 0;
 bool            Application::m_controlKeyHold = false;
-double          Application::xprevcursorpos = 0.0f;
-double          Application::yprevcursorpos = 0.0f;
 Camera          Application::m_camera;
 bool            Application::m_w_pressed = false;
 bool            Application::m_s_pressed = false;
@@ -63,16 +62,12 @@ void Application::init(const unsigned int& width, const unsigned int& height) {
     m_gui.init(m_width, m_height);
 
     init();
+
+    glEnable(GL_DEPTH);
 }
 
 void Application::init() {
-    m_camera.SetMode(FREE);
-    //m_Camera.Reset
-    m_camera.SetPosition(glm::vec3(0, 1, 1));
-    m_camera.SetLookAt(glm::vec3(0, 0, 0));
-    m_camera.SetClipping(0.01f, 10000.0f);
-    m_camera.SetFOV(60);
-    m_camera.SetViewport(0, 0, m_width, m_height);
+    m_camera.init(glm::vec3(1.0f, 1.0f, 1.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), glm::ivec2(m_width, m_height), 3.14 / 4, 0.01, 1000.0);
 
     std::cout << "Computing the stream lines...";
     m_streamtracer.loadOpenFOAM("../../data/Fraunhofer/othmer.foam");
@@ -85,41 +80,40 @@ void Application::create() {
     compileShaders();
 
     /*glm::vec3 vertices[3] = { glm::vec3(-0.6f, -0.4f, 0.0f), glm::vec3(0.6f, -0.4f, 0.0f), glm::vec3(0.0f, 0.6f, 0.0f) };
-    glm::vec3 colors[3] = { glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f) };*/
+    glm::vec3 colors[3] = { glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f) };
+    m_nVertices = 3;*/
 
     std::vector<glm::vec3> vertices = m_streamtracer.getStreamLines();
     std::vector<glm::vec3> colors   = m_streamtracer.getStreamColors();
     m_nVertices = vertices.size();
-
-    GLuint buffers[2];
-    glGenBuffers(2, buffers);
-
-    glBindBuffer(GL_ARRAY_BUFFER, buffers[0]);
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), &vertices[0], GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
-
-    glBindBuffer(GL_ARRAY_BUFFER, buffers[1]);
-    glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(glm::vec3), &colors[0], GL_STATIC_DRAW);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
 
     glm::vec3 center(0.0f, 0.0f, 0.0f);
     for (size_t i = 0; i < vertices.size(); i++){
         center += vertices[i];
     }
     center /= vertices.size();
+    for (size_t i = 0; i < vertices.size(); i++){
+        vertices[i] -= center;
+    }
 
-    float ratio = m_width / (float)m_height;
-    m_projmat = glm::perspective(45.0f, ratio, 0.0f, 1000.0f);
-    m_viewmat = glm::lookAt(center + glm::vec3(0.2f, 0.2f, 0.2f), center, glm::vec3(0.0f, 1.0f, 0.0f));
-    m_worldmat = glm::mat4( 
-        100.0f,   0.0f,   0.0f, 0.0f,
-        0.0f,   100.0f,   0.0f, 0.0f,
-        0.0f,     0.0f, 100.0f, 0.0f,
-        0.0f,     0.0f, 0.0f, 100.0f
-        );
+
+    GLuint buffers[2]; 
+    glGenBuffers(2, buffers);
+
+    glBindBuffer(GL_ARRAY_BUFFER, buffers[0]);
+    glBufferData(GL_ARRAY_BUFFER, /*vertices.size()*/ m_nVertices * sizeof(glm::vec3), &vertices[0], GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+
+    glBindBuffer(GL_ARRAY_BUFFER, buffers[1]);
+    glBufferData(GL_ARRAY_BUFFER, /*colors.size()*/ m_nVertices * sizeof(glm::vec3), &colors[0], GL_STATIC_DRAW);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+
+    m_projmat = m_camera.getProjMat();
+    m_viewmat = m_camera.getViewMat();
+    m_worldmat = glm::mat4(1.0f);
 
     glUseProgram(simple_program);
-    GLuint world_mat_loc = glGetUniformLocation(simple_program, "world_mat");
+    GLuint world_mat_loc = glGetUniformLocation(simple_program,  "world_mat");
     GLuint view_mat_loc  = glGetUniformLocation( simple_program, "view_mat");
     GLuint proj_mat_loc  = glGetUniformLocation( simple_program, "proj_mat");
 
@@ -128,30 +122,12 @@ void Application::create() {
     glUniformMatrix4fv(proj_mat_loc,  1, GL_FALSE, (float*)&m_projmat);
 }
 
-void Application::update(float time, float elapsedTime) {
-    //if (m_camera.viewmatUpdated()){
-//    m_viewmat = glm::lookAt(glm::vec3(sin(time), cos(time), 1.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    m_camera.Update();
+void Application::update(float time, float timeSinceLastFrame) {
 
-    if (m_w_pressed)
-        m_camera.Move(CameraDirection::FORWARD);
+    m_camera.moveCamera(timeSinceLastFrame, m_w_pressed, m_s_pressed);
 
-    if (m_s_pressed)
-        m_camera.Move(CameraDirection::BACK);
-
-    if (m_a_pressed)
-        m_camera.Move(CameraDirection::LEFT);
-
-    if (m_d_pressed)
-        m_camera.Move(CameraDirection::RIGHT);
-
-    if (m_q_pressed)
-        m_camera.Move(CameraDirection::UP);
-
-    if (m_e_pressed)
-        m_camera.Move(CameraDirection::DOWN);
-
-    m_camera.GetMatricies(m_projmat, m_viewmat, m_worldmat);
+    m_viewmat = m_camera.getViewMat();
+    m_projmat = m_camera.getProjMat();
 
     GLuint world_mat_loc = glGetUniformLocation(simple_program, "world_mat");
     GLuint view_mat_loc  = glGetUniformLocation(simple_program, "view_mat");
@@ -160,7 +136,6 @@ void Application::update(float time, float elapsedTime) {
     glUniformMatrix4fv(world_mat_loc, 1, GL_FALSE, (float*)&m_worldmat);
     glUniformMatrix4fv(view_mat_loc,  1, GL_FALSE, (float*)&m_viewmat);
     glUniformMatrix4fv(proj_mat_loc,  1, GL_FALSE, (float*)&m_projmat);
-   // }
 }
 
 void Application::draw() {
@@ -255,16 +230,12 @@ void Application::EventMouseButton(GLFWwindow* window, int button, int action, i
 void Application::EventMousePos(GLFWwindow* window, double xpos, double ypos) {
     m_gui.TwEventMousePosGLFW3(int(xpos), int(ypos));
 
-    double xdelta = 0.0, ydelta = 0.0;
-    if (xprevcursorpos > 0.0 && yprevcursorpos > 0.0){
-        xdelta = xpos - xprevcursorpos;
-        ydelta = ypos - yprevcursorpos;
+    if (m_controlKeyHold){
+        double x_mouse_mov = xpos - m_width / 2.0, y_mouse_mov = ypos - m_height / 2.0;
+        m_camera.rotateCamera(1.0f, x_mouse_mov / m_width, y_mouse_mov / m_height);
+
+        glfwSetCursorPos(m_window, m_width / 2.0, m_height / 2.0);
     }
-
-    xprevcursorpos = xpos;
-    yprevcursorpos = ypos;
-
-    m_camera.Move2D(xpos, ypos);
 }
 
 void Application::EventMouseWheel(GLFWwindow* window, double xoffset, double yoffset) {
@@ -275,12 +246,14 @@ void Application::EventKey(GLFWwindow* window, int key, int scancode, int action
     m_gui.TwEventKeyGLFW3(key, scancode, action, mods);
 
     if (action == GLFW_PRESS){
-        if (key == GLFW_KEY_W)  m_w_pressed = true;
-        if (key == GLFW_KEY_S)  m_s_pressed = true;
-        if (key == GLFW_KEY_A)  m_a_pressed = true;
-        if (key == GLFW_KEY_D)  m_d_pressed = true;
-        if (key == GLFW_KEY_Q)  m_q_pressed = true;
-        if (key == GLFW_KEY_E)  m_e_pressed = true;
+        if (m_controlKeyHold && key == GLFW_KEY_W)  m_w_pressed = true;
+        if (m_controlKeyHold && key == GLFW_KEY_S)  m_s_pressed = true;
+        if (m_controlKeyHold && key == GLFW_KEY_A)  m_a_pressed = true;
+        if (m_controlKeyHold && key == GLFW_KEY_D)  m_d_pressed = true;
+        if (m_controlKeyHold && key == GLFW_KEY_Q)  m_q_pressed = true;
+        if (m_controlKeyHold && key == GLFW_KEY_E)  m_e_pressed = true;
+
+        if (key == GLFW_KEY_LEFT_CONTROL)           m_controlKeyHold = true;
     }
 
     if (action == GLFW_RELEASE){
@@ -290,6 +263,8 @@ void Application::EventKey(GLFWwindow* window, int key, int scancode, int action
         if (key == GLFW_KEY_D)  m_d_pressed = false;
         if (key == GLFW_KEY_Q)  m_q_pressed = false;
         if (key == GLFW_KEY_E)  m_e_pressed = false;
+
+        if (key == GLFW_KEY_LEFT_CONTROL)           m_controlKeyHold = false;
     }
 }
 
@@ -311,10 +286,15 @@ void Application::error_callback(int error, const char* description) {
 void Application::key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, GL_TRUE);
-
-    if (key == GLFW_KEY_LEFT_CONTROL && action == GLFW_PRESS)
+ 
+    if (key == GLFW_KEY_LEFT_CONTROL && action == GLFW_PRESS){
+        glfwSetCursorPos(m_window, m_width / 2.0f, m_height / 2.0f);
+        glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
         m_controlKeyHold = true;
+    }
 
-    if (key == GLFW_KEY_LEFT_CONTROL && action == GLFW_RELEASE)
+    if (key == GLFW_KEY_LEFT_CONTROL && action == GLFW_RELEASE){
+        glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
         m_controlKeyHold = false;
+    }
 }
