@@ -49,6 +49,7 @@ private:
     static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
 
     static bool m_controlKeyHold;
+    static bool m_altKeyHold;
 
 private:
     static GLFWwindow* m_window;

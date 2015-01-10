@@ -11,18 +11,19 @@
 #include <GL/glew.h>
 
 // Static Members
-GLFWwindow*     Application::m_window = 0;
+GLFWwindow*     Application::m_window           = 0;
 AntTweakBarGUI  Application::m_gui;
-unsigned int    Application::m_width = 0;
-unsigned int    Application::m_height = 0;
-bool            Application::m_controlKeyHold = false;
+unsigned int    Application::m_width            = 0;
+unsigned int    Application::m_height           = 0;
+bool            Application::m_controlKeyHold   = false;
+bool            Application::m_altKeyHold       = false;
 Camera          Application::m_camera;
-bool            Application::m_w_pressed = false;
-bool            Application::m_s_pressed = false;
-bool            Application::m_a_pressed = false;
-bool            Application::m_d_pressed = false;
-bool            Application::m_q_pressed = false;
-bool            Application::m_e_pressed = false;
+bool            Application::m_w_pressed        = false;
+bool            Application::m_s_pressed        = false;
+bool            Application::m_a_pressed        = false;
+bool            Application::m_d_pressed        = false;
+bool            Application::m_q_pressed        = false;
+bool            Application::m_e_pressed        = false;
 
 Application::Application() {
 }
@@ -64,49 +65,74 @@ void Application::init(const unsigned int& width, const unsigned int& height) {
     init();
 
     glEnable(GL_DEPTH);
+    glEnable(GL_DEPTH_TEST);
 }
 
 void Application::init() {
+    glClearColor(19 / 255.0, 9 / 255.0, 99 / 255.0, 1.0f);
     m_camera.init(glm::vec3(1.0f, 1.0f, 1.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), glm::ivec2(m_width, m_height), 3.14 / 4, 0.01, 1000.0);
 
     std::cout << "Computing the stream lines...";
     m_streamtracer.loadOpenFOAM("../../data/Fraunhofer/othmer.foam");
     m_streamtracer.computeAccel();
-    m_streamtracer.computeStreamlines();
+    //m_streamtracer.computeStreamlines();
+    m_streamtracer.computeStreamsurfaces();
     std::cout << "Done.\n";
 }
 
 void Application::create() {
     compileShaders();
 
-    /*glm::vec3 vertices[3] = { glm::vec3(-0.6f, -0.4f, 0.0f), glm::vec3(0.6f, -0.4f, 0.0f), glm::vec3(0.0f, 0.6f, 0.0f) };
-    glm::vec3 colors[3] = { glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f) };
-    m_nVertices = 3;*/
-
-    std::vector<glm::vec3> vertices = m_streamtracer.getStreamLines();
+    /*std::vector<glm::vec3> vertices = m_streamtracer.getStreamLines();
     std::vector<glm::vec3> colors   = m_streamtracer.getStreamColors();
-    m_nVertices = vertices.size();
+    m_nVertices = vertices.size();*/
+
+    std::vector<std::vector<glm::vec3>> streamsurface_vertices = m_streamtracer.getStreamSurfaceLines_Forward();
+    std::vector<std::vector<glm::vec3>> streamsurface_colors   = m_streamtracer.getStreamSurfaceColors_Forward();
+
+    std::vector<glm::vec3> vertices, colors;
+    std::vector<glm::uint32> indices;
 
     glm::vec3 center(0.0f, 0.0f, 0.0f);
-    for (size_t i = 0; i < vertices.size(); i++){
-        center += vertices[i];
+    unsigned int count = 0;
+    for (size_t i = 0; i < streamsurface_vertices.size(); i++){
+        for (size_t j = 0; j < streamsurface_vertices[i].size(); j++){
+            vertices.push_back(streamsurface_vertices[i][j]);
+            colors.push_back(streamsurface_colors[i][j]);
+
+            if (i != streamsurface_vertices.size() - 1 && j < streamsurface_vertices[i].size() - 1 && j < streamsurface_vertices[i + 1].size() - 1){
+                indices.push_back(count);
+                indices.push_back(count + streamsurface_vertices[i].size());
+                indices.push_back(count + 1);
+
+                indices.push_back(count + 1);
+                indices.push_back(count + streamsurface_vertices[i].size());
+                indices.push_back(count + streamsurface_vertices[i].size() + 1);
+            }
+
+            center += streamsurface_vertices[i][j];
+            count++;
+        }
     }
-    center /= vertices.size();
+    m_nVertices = indices.size();
+    center /= count;
     for (size_t i = 0; i < vertices.size(); i++){
-        vertices[i] -= center;
+            vertices[i] -= center;
     }
 
-
-    GLuint buffers[2]; 
-    glGenBuffers(2, buffers);
+    GLuint buffers[3]; 
+    glGenBuffers(3, buffers);
 
     glBindBuffer(GL_ARRAY_BUFFER, buffers[0]);
-    glBufferData(GL_ARRAY_BUFFER, /*vertices.size()*/ m_nVertices * sizeof(glm::vec3), &vertices[0], GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), &vertices[0], GL_STATIC_DRAW);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
 
     glBindBuffer(GL_ARRAY_BUFFER, buffers[1]);
-    glBufferData(GL_ARRAY_BUFFER, /*colors.size()*/ m_nVertices * sizeof(glm::vec3), &colors[0], GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(glm::vec3), &colors[0], GL_STATIC_DRAW);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffers[2]);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(glm::uint32), &indices[0], GL_STATIC_DRAW);
 
     m_projmat = m_camera.getProjMat();
     m_viewmat = m_camera.getViewMat();
@@ -139,14 +165,15 @@ void Application::update(float time, float timeSinceLastFrame) {
 }
 
 void Application::draw() {
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glUseProgram(simple_program);
 
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
 
-    glDrawArrays(GL_LINES, 0, m_nVertices);
+    //glDrawArrays(GL_LINES, 0, m_nVertices);
+    glDrawElements(GL_TRIANGLES, m_nVertices, GL_UNSIGNED_INT, 0);
 
     glDisableVertexAttribArray(0);
     glDisableVertexAttribArray(1);

@@ -40,7 +40,7 @@ public:
     void computeStreamlines();
     void computeStreamsurfaces();
 
-    struct Parameters
+    struct LineParameters
     {
         // Tracing parameters
         enum TraceDirection {TD_FORWARD, TD_BACKWARD, TD_BOTH};
@@ -56,11 +56,30 @@ public:
         glm::quat 		seedPlaneOrientation;
     };
 
-    void getParameters( Parameters &parameters );
-    void setParameters( const Parameters &paramters );
+    struct SurfaceParameters
+    {
+        // Tracing parameters
+        enum TraceDirection { TD_FORWARD, TD_BACKWARD, TD_BOTH };
+
+        TraceDirection  traceDirection;
+        float           traceStepSize;
+        unsigned int    traceMaxSteps;
+        unsigned int    traceMaxSeeds;
+
+        // Seeding plane
+        std::vector< glm::vec3 >    seedingPoints;
+        glm::vec3                   seedingLineCenter;
+        
+    };
+
+    void getParameters( LineParameters &parameters );
+    void setParameters( const LineParameters &paramters );
 
     std::vector<glm::vec3> getStreamLines();
     std::vector<glm::vec3> getStreamColors();
+
+    std::vector<std::vector<glm::vec3>> getStreamSurfaceLines_Forward();
+    std::vector<std::vector<glm::vec3>> getStreamSurfaceColors_Forward();
 
 private:
     bool loadBinary(std::string filename);
@@ -70,7 +89,8 @@ private:
     bool seedIsValid(glm::vec3 seed);
     bool seedIsValid(glm::vec3 seed, size_t &i, size_t &j, size_t &k);
     
-    Parameters m_parameters;
+    LineParameters m_line_parameters;
+    SurfaceParameters m_surface_parameters;
 
     vtkSmartPointer<vtkOpenFOAMReader> m_reader;
 
@@ -84,9 +104,18 @@ private:
     Grid m_sceneAccel;
 
     // Result glyphs
-    std::vector<glm::vec3>  m_streamLines;
-    std::vector<glm::vec3>  m_streamColors;
-    std::vector<glm::vec3>  m_streamTexCoords;
+    std::vector< glm::vec3 > m_streamLines;
+    std::vector< glm::vec3 > m_streamColors;
+    std::vector< glm::vec3 > m_streamTexCoords;
+
+
+    std::vector< std::vector< glm::vec3 > >  m_streamLines_forward;
+    std::vector< std::vector< glm::vec3 > >  m_streamColors_forward;
+    std::vector< std::vector< glm::vec3 > >  m_streamTexCoords_forward;
+
+    std::vector< std::vector< glm::vec3 > >  m_streamLines_backward;
+    std::vector< std::vector< glm::vec3 > >  m_streamColors_backward;
+    std::vector< std::vector< glm::vec3 > >  m_streamTexCoords_backward;
 };
 
 #endif
