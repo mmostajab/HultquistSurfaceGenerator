@@ -19,6 +19,8 @@ void Camera::init(const glm::vec3& camera_pos, const glm::vec3& camera_lookat, c
     m_camera_up = glm::normalize(m_camera_up);
     m_camera_up_vec = glm::cross(m_camera_right_vec, m_camera_lookat_vec);
     m_camera_up_vec = glm::normalize(m_camera_up_vec);
+
+    moved = true;
 }
 
 void Camera::moveCamera(const double& speed, const bool& forward, const bool& backward){
@@ -29,10 +31,12 @@ void Camera::moveCamera(const double& speed, const bool& forward, const bool& ba
     
     if (forward) {
         m_camera_pos += displacement;
+        moved = true;
     }
 
     if (backward) {
         m_camera_pos -= displacement;
+        moved = true;
     }
 }
 
@@ -47,6 +51,7 @@ void Camera::rotateCamera(const double& speed, const double& x, const double& y)
     glm::normalize(m_camera_right_vec);
     m_camera_up_vec = cross(m_camera_right_vec, m_camera_lookat_vec);
     glm::normalize(m_camera_up_vec);
+    moved = true;
 }
 
 glm::mat4 Camera::getViewMat() {
@@ -55,6 +60,12 @@ glm::mat4 Camera::getViewMat() {
 
 glm::mat4 Camera::getProjMat() {
     return glm::perspective(m_fov, (double)m_viewportsize.y / m_viewportsize.x, m_near_clip, m_far_clip);
+}
+
+bool Camera::isMoved() {
+    bool retval = moved;
+    moved = false;
+    return retval;
 }
 
 Camera::~Camera() {

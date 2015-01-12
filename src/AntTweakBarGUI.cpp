@@ -12,9 +12,49 @@ void AntTweakBarGUI::init(const unsigned int& width, const unsigned int& height)
         exit(EXIT_FAILURE);
 
     TwWindowSize(m_width, m_height);
-    TwBar* myBar = TwNewBar("Tools");
-    bool myVar = 0;
-    TwAddVarRW(myBar, "OPENMP", TW_TYPE_BOOL8, &myVar, "");
+    TwBar* generalBar       = TwNewBar("General");
+    TwBar* seedinglineBar   = TwNewBar("Seeding Params");
+
+    general_wireframe = false;
+    TwAddVarRW(generalBar, "Wireframe", TW_TYPE_BOOL8, &general_wireframe, "");
+
+    general_streamlines = false;
+    TwAddVarRW(generalBar, "Streamlines", TW_TYPE_BOOL8, &general_streamlines, "");
+
+    general_light_dir[0] = 1.0f;    general_light_dir[1] = 1.0f;    general_light_dir[2] = 1.0f;
+    TwAddVarRW(generalBar, "Light Direction", TW_TYPE_DIR3F, general_light_dir, "");
+
+    //TraceDirection  traceDirection;
+    //float           traceStepSize;
+    //unsigned int    traceMaxSteps;
+    //unsigned int    traceMaxSeeds;
+
+    //// Seeding plane
+    //std::vector< glm::vec3 >    seedingPoints;
+    //glm::vec3                   seedingLineCenter;
+
+    seedingline_maxSeeds    = 0;
+    seedingline_maxSteps    = 0;
+    seedingline_stepSize    = 0.01f;
+    seedingline_center[0]   = 0.0f;
+    seedingline_center[1]   = 0.0f;
+    seedingline_center[2]   = 0.0f;
+    seedingline_dir[0]      = 0.0f;
+    seedingline_dir[1]      = 0.0f;
+    seedingline_dir[2]      = 0.0f;
+
+    TwAddSeparator(seedinglineBar, "Segments", "");
+    //TwAddVarRW(seedinglineBar, "Direction2", )
+    TwAddVarRW(seedinglineBar, "Max Seeds", TW_TYPE_UINT32, &seedingline_maxSeeds, "");
+    TwAddVarRW(seedinglineBar, "Max Steps", TW_TYPE_UINT32, &seedingline_maxSteps, "");
+    TwAddVarRW(seedinglineBar, "Step Size", TW_TYPE_FLOAT,  &seedingline_stepSize, "");
+    TwAddSeparator(seedinglineBar, "Spaital", "");
+    TwAddVarRW(seedinglineBar, "Point",     TW_TYPE_DIR3F,  &seedingline_center, "");
+    TwAddVarRW(seedinglineBar, "Direction", TW_TYPE_DIR3F,  &seedingline_dir, "");
+
+    seedingline_dir[0] = 0.0f;
+    seedingline_dir[1] = 1.0f;
+    seedingline_dir[2] = 0.0f;
 }
 
 void AntTweakBarGUI::draw() {

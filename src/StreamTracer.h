@@ -25,8 +25,6 @@
 #include "AABB.h"
 #include "Grid.h"
 
-class CGNSStructuredMesh;
-
 class StreamTracer
 {
 public:
@@ -37,24 +35,7 @@ public:
     void loadOpenFOAM(std::string filename);
 
     void computeAccel();
-    void computeStreamlines();
     void computeStreamsurfaces();
-
-    struct LineParameters
-    {
-        // Tracing parameters
-        enum TraceDirection {TD_FORWARD, TD_BACKWARD, TD_BOTH};
-
-        TraceDirection  traceDirection;
-        float           traceStepSize;
-        unsigned int    traceMaxSteps;
-        unsigned int    traceMaxSeeds;
-
-        // Seeding plane
-        float			seedPlaneSize;
-        glm::vec3		seedPlaneCenter;
-        glm::quat 		seedPlaneOrientation;
-    };
 
     struct SurfaceParameters
     {
@@ -69,17 +50,27 @@ public:
         // Seeding plane
         std::vector< glm::vec3 >    seedingPoints;
         glm::vec3                   seedingLineCenter;
+        glm::vec3                   seedingLineDirection;
         
+        bool operator==(const SurfaceParameters& rval){
+            if (traceDirection       == rval.traceDirection    &&
+                traceStepSize        == rval.traceStepSize     &&
+                traceMaxSteps        == rval.traceMaxSteps     &&
+                traceMaxSeeds        == rval.traceMaxSeeds     &&
+                seedingLineCenter    == rval.seedingLineCenter &&
+                seedingLineDirection == rval.seedingLineDirection){
+                return true;
+            }
+
+            return false;
+        }
     };
 
-    void getParameters( LineParameters &parameters );
-    void setParameters( const LineParameters &paramters );
-
-    std::vector<glm::vec3> getStreamLines();
-    std::vector<glm::vec3> getStreamColors();
+    void getParameters(SurfaceParameters &parameters);
+    void setParameters(const SurfaceParameters &parameters);
 
     std::vector<std::vector<glm::vec3>> getStreamSurfaceLines_Forward();
-    std::vector<std::vector<glm::vec3>> getStreamSurfaceColors_Forward();
+    std::vector<std::vector<glm::vec3>> getStreamSurfaceDerivs_Forward();
 
 private:
     bool loadBinary(std::string filename);
@@ -89,7 +80,6 @@ private:
     bool seedIsValid(glm::vec3 seed);
     bool seedIsValid(glm::vec3 seed, size_t &i, size_t &j, size_t &k);
     
-    LineParameters m_line_parameters;
     SurfaceParameters m_surface_parameters;
 
     vtkSmartPointer<vtkOpenFOAMReader> m_reader;
@@ -103,18 +93,12 @@ private:
     AABB m_sceneBox;
     Grid m_sceneAccel;
 
-    // Result glyphs
-    std::vector< glm::vec3 > m_streamLines;
-    std::vector< glm::vec3 > m_streamColors;
-    std::vector< glm::vec3 > m_streamTexCoords;
-
-
     std::vector< std::vector< glm::vec3 > >  m_streamLines_forward;
-    std::vector< std::vector< glm::vec3 > >  m_streamColors_forward;
+    std::vector< std::vector< glm::vec3 > >  m_streamDerivs_forward;
     std::vector< std::vector< glm::vec3 > >  m_streamTexCoords_forward;
 
     std::vector< std::vector< glm::vec3 > >  m_streamLines_backward;
-    std::vector< std::vector< glm::vec3 > >  m_streamColors_backward;
+    std::vector< std::vector< glm::vec3 > >  m_streamDerivs_backward;
     std::vector< std::vector< glm::vec3 > >  m_streamTexCoords_backward;
 };
 

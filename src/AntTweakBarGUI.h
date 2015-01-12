@@ -23,8 +23,22 @@ public:
     // Callback function called by GLFW when window size changes
     static void WindowSizeCB(int width, int height);
 
-private:
+//private:
+public:
     unsigned int m_width, m_height;
+
+    bool  general_wireframe;
+    bool  general_streamlines;
+    float general_light_dir[3];
+
+    //TraceDirection  traceDirection;
+    float           seedingline_stepSize;
+    unsigned int    seedingline_maxSteps;
+    unsigned int    seedingline_maxSeeds;
+
+    // Seeding plane
+    float           seedingline_center[3];
+    float           seedingline_dir[3];
 };
 
 #endif

@@ -72,80 +72,14 @@ void Application::init() {
     glClearColor(19 / 255.0, 9 / 255.0, 99 / 255.0, 1.0f);
     m_camera.init(glm::vec3(1.0f, 1.0f, 1.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), glm::ivec2(m_width, m_height), 3.14 / 4, 0.01, 1000.0);
 
-    std::cout << "Computing the stream lines...";
-    m_streamtracer.loadOpenFOAM("../../data/Fraunhofer/othmer.foam");
-    m_streamtracer.computeAccel();
-    //m_streamtracer.computeStreamlines();
-    m_streamtracer.computeStreamsurfaces();
-    std::cout << "Done.\n";
 }
 
 void Application::create() {
     compileShaders();
 
-    /*std::vector<glm::vec3> vertices = m_streamtracer.getStreamLines();
-    std::vector<glm::vec3> colors   = m_streamtracer.getStreamColors();
-    m_nVertices = vertices.size();*/
+    m_streamtracer_renderer.loadOpenFOAM("../../data/Fraunhofer/othmer.foam");
 
-    std::vector<std::vector<glm::vec3>> streamsurface_vertices = m_streamtracer.getStreamSurfaceLines_Forward();
-    std::vector<std::vector<glm::vec3>> streamsurface_colors   = m_streamtracer.getStreamSurfaceColors_Forward();
-
-    std::vector<glm::vec3> vertices, colors;
-    std::vector<glm::uint32> indices;
-
-    glm::vec3 center(0.0f, 0.0f, 0.0f);
-    unsigned int count = 0;
-    for (size_t i = 0; i < streamsurface_vertices.size(); i++){
-        for (size_t j = 0; j < streamsurface_vertices[i].size(); j++){
-            vertices.push_back(streamsurface_vertices[i][j]);
-            colors.push_back(streamsurface_colors[i][j]);
-
-            if (i != streamsurface_vertices.size() - 1 && j < streamsurface_vertices[i].size() - 1 && j < streamsurface_vertices[i + 1].size() - 1){
-                indices.push_back(count);
-                indices.push_back(count + streamsurface_vertices[i].size());
-                indices.push_back(count + 1);
-
-                indices.push_back(count + 1);
-                indices.push_back(count + streamsurface_vertices[i].size());
-                indices.push_back(count + streamsurface_vertices[i].size() + 1);
-            }
-
-            center += streamsurface_vertices[i][j];
-            count++;
-        }
-    }
-    m_nVertices = indices.size();
-    center /= count;
-    for (size_t i = 0; i < vertices.size(); i++){
-            vertices[i] -= center;
-    }
-
-    GLuint buffers[3]; 
-    glGenBuffers(3, buffers);
-
-    glBindBuffer(GL_ARRAY_BUFFER, buffers[0]);
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), &vertices[0], GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
-
-    glBindBuffer(GL_ARRAY_BUFFER, buffers[1]);
-    glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(glm::vec3), &colors[0], GL_STATIC_DRAW);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffers[2]);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(glm::uint32), &indices[0], GL_STATIC_DRAW);
-
-    m_projmat = m_camera.getProjMat();
-    m_viewmat = m_camera.getViewMat();
-    m_worldmat = glm::mat4(1.0f);
-
-    glUseProgram(simple_program);
-    GLuint world_mat_loc = glGetUniformLocation(simple_program,  "world_mat");
-    GLuint view_mat_loc  = glGetUniformLocation( simple_program, "view_mat");
-    GLuint proj_mat_loc  = glGetUniformLocation( simple_program, "proj_mat");
-
-    glUniformMatrix4fv(world_mat_loc, 1, GL_FALSE, (float*)&m_worldmat);
-    glUniformMatrix4fv(view_mat_loc,  1, GL_FALSE, (float*)&m_viewmat);
-    glUniformMatrix4fv(proj_mat_loc,  1, GL_FALSE, (float*)&m_projmat);
+    m_streamtracer_renderer.getParameters(m_gui.seedingline_maxSeeds, m_gui.seedingline_maxSteps, m_gui.seedingline_stepSize, m_gui.seedingline_center, m_gui.seedingline_dir);
 }
 
 void Application::update(float time, float timeSinceLastFrame) {
@@ -154,29 +88,30 @@ void Application::update(float time, float timeSinceLastFrame) {
 
     m_viewmat = m_camera.getViewMat();
     m_projmat = m_camera.getProjMat();
+    m_worldmat = glm::mat4(1.0f);
 
-    GLuint world_mat_loc = glGetUniformLocation(simple_program, "world_mat");
-    GLuint view_mat_loc  = glGetUniformLocation(simple_program, "view_mat");
-    GLuint proj_mat_loc  = glGetUniformLocation(simple_program, "proj_mat");
-    
-    glUniformMatrix4fv(world_mat_loc, 1, GL_FALSE, (float*)&m_worldmat);
-    glUniformMatrix4fv(view_mat_loc,  1, GL_FALSE, (float*)&m_viewmat);
-    glUniformMatrix4fv(proj_mat_loc,  1, GL_FALSE, (float*)&m_projmat);
+    glUniformMatrix4fv(0, 1, GL_FALSE, (float*)&m_projmat);
+    glUniformMatrix4fv(1, 1, GL_FALSE, (float*)&m_viewmat);
+    glUniformMatrix4fv(2, 1, GL_FALSE, (float*)&m_worldmat);
+    glUniform3fv      (3, 1, (float*)m_gui.general_light_dir);
+
+    if (m_gui.general_streamlines)
+        m_streamtracer_renderer.setMode(StreamSurfaceRenderer::Mode::STREAM_LINES);
+    else
+        m_streamtracer_renderer.setMode(StreamSurfaceRenderer::Mode::STREAM_SURFACE);
+    m_streamtracer_renderer.setParameters(m_gui.seedingline_maxSeeds, m_gui.seedingline_maxSteps, m_gui.seedingline_stepSize, m_gui.seedingline_center, m_gui.seedingline_dir);
+    m_streamtracer_renderer.update(time, timeSinceLastFrame);
 }
 
 void Application::draw() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    glUseProgram(simple_program);
+    if (m_gui.general_wireframe)
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    else
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-    glEnableVertexAttribArray(0);
-    glEnableVertexAttribArray(1);
-
-    //glDrawArrays(GL_LINES, 0, m_nVertices);
-    glDrawElements(GL_TRIANGLES, m_nVertices, GL_UNSIGNED_INT, 0);
-
-    glDisableVertexAttribArray(0);
-    glDisableVertexAttribArray(1);
+    m_streamtracer_renderer.draw();
 }
 
 void Application::run() {
@@ -203,6 +138,7 @@ void Application::run() {
 }
 
 void Application::shutdown() {
+    m_streamtracer_renderer.shutdown();
     m_gui.shutdown();
     glfwDestroyWindow(m_window);
     glfwTerminate();
@@ -212,42 +148,8 @@ void Application::shutdown() {
 Application::~Application() {
 }
 
-std::string Application::convertFileToString(const std::string& filename) {    
-    std::ifstream ifile(filename);
-    if (!ifile){
-        return std::string("");
-    }
-
-    return std::string(std::istreambuf_iterator<char>(ifile), (std::istreambuf_iterator<char>()));
-
-}
-
 void Application::compileShaders() { 
-    GLuint simple_vertex_shader, simple_fragment_shader;
-    std::string simple_shader_vertex_source = convertFileToString("../../src/glsl/simple.vert");
-    std::string simple_shader_fragment_source = convertFileToString("../../src/glsl/simple.frag");
-
-    if (simple_shader_vertex_source.size() == 0 || simple_shader_fragment_source.size() == 0)
-        return;
-
-    simple_vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-    simple_fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
-
-    const GLchar* simple_shader_vertex_sourcePtr    = simple_shader_vertex_source.c_str();
-    const GLchar* simple_shader_fragment_sourcePtr  = simple_shader_fragment_source.c_str();
-
-    glShaderSource(simple_vertex_shader, 1, &simple_shader_vertex_sourcePtr, NULL);
-    glShaderSource(simple_fragment_shader, 1, &simple_shader_fragment_sourcePtr, NULL);
-    glCompileShader(simple_vertex_shader);
-    glCompileShader(simple_fragment_shader);
-    
-    simple_program = glCreateProgram();
-    glAttachShader(simple_program, simple_vertex_shader);
-    glAttachShader(simple_program, simple_fragment_shader);
-    glLinkProgram(simple_program);
-    
-    glDeleteShader(simple_vertex_shader);
-    glDeleteShader(simple_fragment_shader);
+    m_streamtracer_renderer.compileShaders();
 }
 
 void Application::EventMouseButton(GLFWwindow* window, int button, int action, int mods) {
@@ -281,6 +183,7 @@ void Application::EventKey(GLFWwindow* window, int key, int scancode, int action
         if (m_controlKeyHold && key == GLFW_KEY_E)  m_e_pressed = true;
 
         if (key == GLFW_KEY_LEFT_CONTROL)           m_controlKeyHold = true;
+        if (key == GLFW_KEY_LEFT_ALT)               m_altKeyHold     = true;
     }
 
     if (action == GLFW_RELEASE){
@@ -291,7 +194,8 @@ void Application::EventKey(GLFWwindow* window, int key, int scancode, int action
         if (key == GLFW_KEY_Q)  m_q_pressed = false;
         if (key == GLFW_KEY_E)  m_e_pressed = false;
 
-        if (key == GLFW_KEY_LEFT_CONTROL)           m_controlKeyHold = false;
+        if (key == GLFW_KEY_LEFT_CONTROL)           m_controlKeyHold    = false;
+        if (key == GLFW_KEY_LEFT_ALT)               m_altKeyHold        = false;
     }
 }
 

@@ -28,6 +28,8 @@ public:
     glm::mat4 getViewMat();
     glm::mat4 getProjMat();
 
+    bool isMoved();
+
     ~Camera();
 
 private:
@@ -49,6 +51,8 @@ private:
 
     glm::mat4 m_projmat;
     glm::mat4 m_viewmat;
+
+    bool moved;
 };
 
 #endif

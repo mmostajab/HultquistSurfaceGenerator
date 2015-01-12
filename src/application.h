@@ -1,6 +1,8 @@
 #ifndef __APPLICATION_H__
 #define __APPLICATION_H__
 
+#include "StreamSurfaceRenderer.h"
+
 #include <gl/glew.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
@@ -12,7 +14,6 @@
 #include <stdio.h>
 
 #include "AntTweakBarGUI.h"
-#include "StreamTracer.h"
 #include "Camera.h"
 
 class Application {
@@ -50,15 +51,17 @@ private:
 
     static bool m_controlKeyHold;
     static bool m_altKeyHold;
+    static bool m_w_pressed, m_s_pressed, m_a_pressed, m_d_pressed, m_q_pressed, m_e_pressed;
 
 private:
     static GLFWwindow* m_window;
     static AntTweakBarGUI m_gui;
     glm::mat4 m_projmat, m_viewmat, m_worldmat;
+    glm::vec3 m_light_dir;
     static unsigned int m_width, m_height;
-    StreamTracer m_streamtracer;
+
+    StreamSurfaceRenderer m_streamtracer_renderer;
     static Camera m_camera;
-    static bool m_w_pressed, m_s_pressed, m_a_pressed, m_d_pressed, m_q_pressed, m_e_pressed;
     unsigned int m_nVertices;
 };
 
