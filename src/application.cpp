@@ -26,6 +26,9 @@ bool            Application::m_q_pressed        = false;
 bool            Application::m_e_pressed        = false;
 
 Application::Application() {
+    m_addition = true;
+    m_remove = true;
+    m_ripping = true;
 }
 
 void Application::init(const unsigned int& width, const unsigned int& height) {
@@ -64,12 +67,17 @@ void Application::init(const unsigned int& width, const unsigned int& height) {
 
     init();
 
-    glEnable(GL_DEPTH);
+    GLenum e = glGetError();
+    //glEnable(GL_DEPTH);
+    e = glGetError();
     glEnable(GL_DEPTH_TEST);
+    e = glGetError();
 }
 
 void Application::init() {
+    GLenum e = glGetError();
     glClearColor(19 / 255.0, 9 / 255.0, 99 / 255.0, 1.0f);
+    e = glGetError();
     m_camera.init(glm::vec3(1.0f, 1.0f, 1.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), glm::ivec2(m_width, m_height), 3.14 / 4, 0.01, 1000.0);
 
 }
@@ -80,6 +88,10 @@ void Application::create() {
     m_streamtracer_renderer.loadOpenFOAM("../../data/Fraunhofer/othmer.foam");
 
     m_streamtracer_renderer.getParameters(m_gui.seedingline_maxSeeds, m_gui.seedingline_maxSteps, m_gui.seedingline_stepSize, m_gui.seedingline_center, m_gui.seedingline_dir);
+    
+    m_addition = m_gui.tracing_addition;
+    m_remove   = m_gui.tracing_remove;
+    m_ripping  = m_gui.tracing_ripping;
 }
 
 void Application::update(float time, float timeSinceLastFrame) {
@@ -99,8 +111,17 @@ void Application::update(float time, float timeSinceLastFrame) {
         m_streamtracer_renderer.setMode(StreamSurfaceRenderer::Mode::STREAM_LINES);
     else
         m_streamtracer_renderer.setMode(StreamSurfaceRenderer::Mode::STREAM_SURFACE);
+
+    if (m_addition != m_gui.tracing_addition || m_remove != m_gui.tracing_remove || m_ripping != m_gui.tracing_ripping){
+        m_streamtracer_renderer.setAsDirty();
+
+        m_addition = m_gui.tracing_addition;
+        m_remove = m_gui.tracing_remove;
+        m_ripping = m_gui.tracing_ripping;
+    }
+
     m_streamtracer_renderer.setParameters(m_gui.seedingline_maxSeeds, m_gui.seedingline_maxSteps, m_gui.seedingline_stepSize, m_gui.seedingline_center, m_gui.seedingline_dir);
-    m_streamtracer_renderer.update(time, timeSinceLastFrame);
+    m_streamtracer_renderer.update(time, timeSinceLastFrame, m_gui.tracing_addition, m_gui.tracing_remove, m_gui.tracing_ripping);
 }
 
 void Application::draw() {
@@ -111,7 +132,17 @@ void Application::draw() {
     else
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
+    glUniformMatrix4fv(0, 1, GL_FALSE, (float*)&m_projmat);
+    glUniformMatrix4fv(1, 1, GL_FALSE, (float*)&m_viewmat);
+    glUniformMatrix4fv(2, 1, GL_FALSE, (float*)&m_worldmat);
+    glUniform3fv(3, 1, (float*)m_gui.general_light_dir);
     m_streamtracer_renderer.draw();
+
+    glUniformMatrix4fv(0, 1, GL_FALSE, (float*)&m_projmat);
+    glUniformMatrix4fv(1, 1, GL_FALSE, (float*)&m_viewmat);
+    glUniformMatrix4fv(2, 1, GL_FALSE, (float*)&m_worldmat);
+    glUniform3fv(3, 1, (float*)m_gui.general_light_dir);
+    m_streamtracer_renderer.draw_2d();
 }
 
 void Application::run() {
@@ -217,7 +248,7 @@ void Application::error_callback(int error, const char* description) {
 void Application::key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
         glfwSetWindowShouldClose(window, GL_TRUE);
- 
+
     if (key == GLFW_KEY_LEFT_CONTROL && action == GLFW_PRESS){
         glfwSetCursorPos(m_window, m_width / 2.0f, m_height / 2.0f);
         glfwSetInputMode(m_window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);

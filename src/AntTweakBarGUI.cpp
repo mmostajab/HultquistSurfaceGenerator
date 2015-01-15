@@ -7,13 +7,14 @@ AntTweakBarGUI::AntTweakBarGUI() {
 
 void AntTweakBarGUI::init(const unsigned int& width, const unsigned int& height) {
     m_width = width;    m_height = height;
-    
+
     if (!TwInit(TwGraphAPI::TW_OPENGL, NULL))
         exit(EXIT_FAILURE);
 
     TwWindowSize(m_width, m_height);
-    TwBar* generalBar       = TwNewBar("General");
-    TwBar* seedinglineBar   = TwNewBar("Seeding Params");
+    TwBar* generalBar = TwNewBar("General");
+    TwBar* seedinglineBar = TwNewBar("SeedingParams");
+    TwDefine("SeedingParams position= '600 0'");
 
     general_wireframe = false;
     TwAddVarRW(generalBar, "Wireframe", TW_TYPE_BOOL8, &general_wireframe, "");
@@ -33,28 +34,33 @@ void AntTweakBarGUI::init(const unsigned int& width, const unsigned int& height)
     //std::vector< glm::vec3 >    seedingPoints;
     //glm::vec3                   seedingLineCenter;
 
-    seedingline_maxSeeds    = 0;
-    seedingline_maxSteps    = 0;
-    seedingline_stepSize    = 0.01f;
-    seedingline_center[0]   = 0.0f;
-    seedingline_center[1]   = 0.0f;
-    seedingline_center[2]   = 0.0f;
-    seedingline_dir[0]      = 0.0f;
-    seedingline_dir[1]      = 0.0f;
-    seedingline_dir[2]      = 0.0f;
+    seedingline_maxSeeds = 0;
+    seedingline_maxSteps = 0;
+    seedingline_stepSize = 0.01f;
+    seedingline_center[0] = 0.0f;
+    seedingline_center[1] = 0.0f;
+    seedingline_center[2] = 0.0f;
+    seedingline_dir[0] = 0.0f;
+    seedingline_dir[1] = 0.0f;
+    seedingline_dir[2] = 0.0f;
 
     TwAddSeparator(seedinglineBar, "Segments", "");
     //TwAddVarRW(seedinglineBar, "Direction2", )
     TwAddVarRW(seedinglineBar, "Max Seeds", TW_TYPE_UINT32, &seedingline_maxSeeds, "");
     TwAddVarRW(seedinglineBar, "Max Steps", TW_TYPE_UINT32, &seedingline_maxSteps, "");
-    TwAddVarRW(seedinglineBar, "Step Size", TW_TYPE_FLOAT,  &seedingline_stepSize, "");
+    TwAddVarRW(seedinglineBar, "Step Size", TW_TYPE_FLOAT, &seedingline_stepSize, "");
     TwAddSeparator(seedinglineBar, "Spaital", "");
-    TwAddVarRW(seedinglineBar, "Point",     TW_TYPE_DIR3F,  &seedingline_center, "");
-    TwAddVarRW(seedinglineBar, "Direction", TW_TYPE_DIR3F,  &seedingline_dir, "");
+    TwAddVarRW(seedinglineBar, "Point", TW_TYPE_DIR3F, &seedingline_center, "");
+    TwAddVarRW(seedinglineBar, "Direction", TW_TYPE_DIR3F, &seedingline_dir, "");
 
     seedingline_dir[0] = 0.0f;
     seedingline_dir[1] = 1.0f;
     seedingline_dir[2] = 0.0f;
+
+    tracing_addition = false; tracing_remove = false; tracing_ripping = false;
+    TwAddVarRW(seedinglineBar, "Addition", TW_TYPE_BOOL8, &tracing_addition, "");
+    TwAddVarRW(seedinglineBar, "Removal", TW_TYPE_BOOL8, &tracing_remove, "");
+    TwAddVarRW(seedinglineBar, "Ripping", TW_TYPE_BOOL8, &tracing_ripping, "");
 }
 
 void AntTweakBarGUI::draw() {

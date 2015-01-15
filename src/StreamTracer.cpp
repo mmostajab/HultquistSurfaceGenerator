@@ -117,14 +117,6 @@ void StreamTracer::loadOpenFOAM(std::string filename)
     saveBinary(filename + ".bin");
 }
 
-std::vector<std::vector<glm::vec3>> StreamTracer::getStreamSurfaceLines_Forward() {
-    return m_streamLines_forward;
-}
-
-std::vector<std::vector<glm::vec3>> StreamTracer::getStreamSurfaceDerivs_Forward() {
-    return m_streamDerivs_forward;
-}
-
 void StreamTracer::computeAccel()
 {
     std::cout << "Computing Acceleration Structure...";
@@ -171,105 +163,180 @@ void StreamTracer::computeAccel()
     std::cout << "Done\n";
 }
 
-void StreamTracer::traceStreamline(glm::vec3 seed, float stepsize, std::vector<glm::vec3> &streamLines, std::vector<glm::vec3> &streamColors, std::vector<glm::vec3> &streamTexCoords)
-{
-    glm::vec3 s0 = seed;
+bool StreamTracer::traceRibbon(const unsigned int& ribbon_id, bool addition, bool remove, bool ripping) {
+    
+    if (ribbon_id >= (m_advancing_front.size() / 2) - 1)
+        return false;
 
-    for (unsigned s=0; s<m_surface_parameters.traceMaxSteps; s++)
-    {
-        // TODO First point should be stored
+    bool caught_up = false;
+    float prev_diagonal = 0.0f;
+    while (true){
 
-        size_t i, j, k;
-        if (!seedIsValid( s0, i, j, k ))
+        unsigned int L0 = m_advancing_front[2 * ribbon_id];
+        unsigned int R0 = m_advancing_front[2 * ribbon_id + 1];
+
+        glm::vec3 d_l = derivate(m_vertices[L0]);
+        if (glm::length(d_l) < 1e-14f){
+            break;
+        }
+
+        glm::vec3 d_r = derivate(m_vertices[R0]);
+        if (glm::length(d_r) < 1e-14f){
+            break;
+        }
+
+        // Ripping
+        if (ripping && glm::dot(glm::normalize(d_l), glm::normalize(d_r)) < 0.8f){
+            return false;
+        }
+
+        glm::vec3 p_l = m_vertices[L0] + d_l * m_surface_parameters.traceStepSize;
+        glm::vec3 p_r = m_vertices[R0] + d_r * m_surface_parameters.traceStepSize;
+
+        if (p_l == m_vertices[L0])
             break;
 
-        std::vector<Grid::PrimitiveIndex> &primitives = m_sceneAccel.getPrimitives( i, j, k );
-        size_t t=0;
-
-#ifdef STREAM_TRACER_USE_CELL_LIST
-        for (; t<primitives.size(); t++)
-            if ( m_cellBoxes[primitives[t]].contains( (float*)(&s0) ) )
-                break;
-        if (t==primitives.size())
+        if (p_r == m_vertices[R0])
             break;
-#endif
 
-        glm::vec3 d0 = m_cellVectors[primitives[t]];
-        glm::vec3 s1 = s0 + stepsize * d0;
+        if (addition){
+            // Addition
+            //glm::float32 maxW = glm::max(glm::length(m_vertices[L1] - m_vertices[R1]), glm::length(m_vertices[L0] - m_vertices[R0]));
+            //glm::float32 minH = glm::min(glm::length(m_vertices[L0] - m_vertices[L1]), glm::length(m_vertices[R1] - m_vertices[R0]));
+            glm::float32 maxW = glm::length(p_l - p_r) + glm::length(m_vertices[L0] - m_vertices[R0]);
+            glm::float32 minH = glm::length(m_vertices[L0] - p_l) + glm::length(p_r - m_vertices[R0]);
+            if (maxW / minH > 2.0f){
+                glm::vec3 newVert = (p_l + p_r) / 2.0f;
+                m_vertices.push_back(p_l);
+                m_derivaties.push_back(d_l);
+                m_texCoords.push_back(glm::length(d_l));
+                m_advancing_front[2 * ribbon_id] = m_vertices.size() - 1;
 
-        //streamLines.push_back(s0);
-        streamLines.push_back(s1);
+                m_vertices.push_back(newVert);
+                m_derivaties.push_back(derivate(newVert));
+                m_texCoords.push_back(glm::length(m_derivaties.back()));
+                m_advancing_front.insert((m_advancing_front.begin() + (2 * ribbon_id + 1)), m_vertices.size() - 1);
+                m_advancing_front.insert((m_advancing_front.begin() + (2 * ribbon_id + 1)), m_vertices.size() - 1);
+                
+                m_vertices.push_back(p_r);
+                m_derivaties.push_back(d_r);
+                m_texCoords.push_back(glm::length(d_r));
+                m_advancing_front[2 * ribbon_id + 3] = m_vertices.size() - 1;
+
+                m_faces.push_back(L0); m_faces.push_back(m_vertices.size() - 2); m_faces.push_back(m_vertices.size() - 3);
+                m_faces.push_back(L0); m_faces.push_back(R0);                    m_faces.push_back(m_vertices.size() - 2);
+                m_faces.push_back(R0); m_faces.push_back(m_vertices.size() - 1); m_faces.push_back(m_vertices.size() - 2);
+
+                return true;
+            }
+        }
+
+        float left_diagonal = glm::length(p_l - m_vertices[R0]);
+        float right_diagonal = glm::length(p_r - m_vertices[L0]);
+        float min_diagonal = glm::min(left_diagonal, right_diagonal);
+        bool trace_left = (left_diagonal == min_diagonal);
+
+        if (caught_up && (trace_left || right_diagonal > prev_diagonal)) return false;
+
+        if (trace_left){
+
+            m_vertices.push_back(p_l);
+            m_derivaties.push_back(d_l);
+            m_texCoords.push_back(glm::length(d_l));
+            m_advancing_front[2 * ribbon_id] = m_vertices.size() - 1;
+
+            m_faces.push_back(L0);
+            m_faces.push_back(R0);
+            m_faces.push_back(m_vertices.size() - 1);
+
+            caught_up = true;
+        } else{
+            m_vertices.push_back(p_r);
+            m_derivaties.push_back(d_r);
+            m_texCoords.push_back(glm::length(d_r));
+            int newVertIdx = m_vertices.size() - 1;
+
+            m_faces.push_back(L0);
+            m_faces.push_back(R0);
+            m_faces.push_back(newVertIdx);
+
+            traceRibbon(ribbon_id + 1, addition, remove, ripping);
+
+            m_advancing_front[2 * ribbon_id + 1] = newVertIdx;
+        }
         
-        streamTexCoords.push_back(glm::vec3(d0.length(), d0.length(), d0.length()));
-        //streamTexCoords.push_back(glm::vec3(d0.length(), d0.length(), d0.length()));
-
-        d0 = glm::normalize(d0);
-
-        streamColors.push_back(d0);
-        //streamColors.push_back(d0);
-
-        s0 = s1;
+        prev_diagonal = min_diagonal;
     }
+
+    return false;
 }
 
-void StreamTracer::computeStreamsurfaces() {
+glm::vec3 StreamTracer::derivate(const glm::vec3& point)
+{
+    glm::vec3 d;
+
+    size_t i, j, k;
+    if (!seedIsValid(point, i, j, k))
+        return glm::vec3(0.0f, 0.0f, 0.0f);
+
+    std::vector<Grid::PrimitiveIndex> &primitives = m_sceneAccel.getPrimitives(i, j, k);
+    unsigned int primitiveIdx = primitives[0];
+
+//    std::vector<Grid::PrimitiveIndex> &primitives = m_sceneAccel.getPrimitives(i, j, k);
+//    size_t t = 0;
+//
+//#ifdef STREAM_TRACER_USE_CELL_LIST
+//    for (; t<primitives.size(); t++)
+//        if (m_cellBoxes[primitives[t]].contains((float*)(&s0)))
+//            break;
+//    if (t == primitives.size())
+//        break;
+//#endif
+
+    d = m_cellVectors[primitiveIdx];
+
+    return d;
+}
+
+void StreamTracer::computeStreamsurfaces(bool addition, bool remove, bool ripping) {
     clock_t streamComputation_start = clock();
 
-    m_streamLines_forward.clear();
-    m_streamDerivs_forward.clear();
-    m_streamTexCoords_forward.clear();
+    m_vertices.clear();
+    m_faces.clear();
+    m_derivaties.clear();
+    m_texCoords.clear();
+    m_advancing_front.clear();
 
-    m_streamLines_backward.clear();
-    m_streamDerivs_backward.clear();
-    m_streamTexCoords_backward.clear();
+    generateSeedingPoints();
+    //m_advancing_front.resize(m_surface_parameters.seedingPoints.size());
 
-    glm::vec3 line_direction(0.0f, 0.0f, 1.0f);
-    boost::random::mt19937 rng;
-    boost::random::uniform_real_distribution<> dist(-0.5f, +0.5f);
-    float len = .4f;
-    for (size_t s = 0; s < m_surface_parameters.traceMaxSeeds; s++){
-        glm::vec3 seed;
-        //do
-        seed = m_surface_parameters.seedingLineCenter + (s * len / m_surface_parameters.traceMaxSeeds - .2f) * m_surface_parameters.seedingLineDirection;
-        //while (!seedIsValid(seed));
-        if (seedIsValid(seed))
-            m_surface_parameters.seedingPoints.push_back( seed );
-    }
+    std::vector<int> lastConnectedPoint(m_surface_parameters.seedingPoints.size() * 2, 0);
+    for (size_t p = 0; p < m_surface_parameters.seedingPoints.size(); p++){
+        m_vertices.push_back(m_surface_parameters.seedingPoints[p]);
+        m_derivaties.push_back(derivate(m_surface_parameters.seedingPoints[p]));
+        m_texCoords.push_back(glm::length(m_derivaties[p]));
+        
 
-    m_streamLines_forward.resize(m_surface_parameters.seedingPoints.size());
-    m_streamDerivs_forward.resize(m_surface_parameters.seedingPoints.size());
-    m_streamTexCoords_forward.resize(m_surface_parameters.seedingPoints.size());
-
-    m_streamLines_backward.resize(m_surface_parameters.seedingPoints.size());
-    m_streamDerivs_backward.resize(m_surface_parameters.seedingPoints.size());
-    m_streamTexCoords_backward.resize(m_surface_parameters.seedingPoints.size());
-
-    unsigned lines = 0;
-    for (unsigned s = 0; s<m_surface_parameters.seedingPoints.size(); s++)
-    {
-        glm::vec3 seed = m_surface_parameters.seedingPoints[s];
-        bool valid = true;
-
-        if (valid)
-        {
-            if (m_surface_parameters.traceDirection == SurfaceParameters::TD_FORWARD || m_surface_parameters.traceDirection == SurfaceParameters::TD_BOTH)
-                traceStreamline(seed, +m_surface_parameters.traceStepSize, m_streamLines_forward[s], m_streamDerivs_forward[s], m_streamTexCoords_forward[s]);
-
-            if (m_streamLines_forward[s].size() > 0)
-                lines++;
-
-            if (m_surface_parameters.traceDirection == SurfaceParameters::TD_BACKWARD || m_surface_parameters.traceDirection == SurfaceParameters::TD_BOTH)
-                traceStreamline(seed, -m_surface_parameters.traceStepSize, m_streamLines_backward[s], m_streamDerivs_backward[s], m_streamTexCoords_backward[s]);
-
-            if (m_streamLines_backward[s].size() > 0)
-                lines++;
+        if (p < m_surface_parameters.seedingPoints.size() - 1){
+            m_advancing_front.push_back(p);
+            m_advancing_front.push_back(p + 1);
         }
+        
+    }
+    
+    int nSeedingPoints = 20; //m_advancing_front.size();
+    for (size_t i = 0; i < nSeedingPoints * m_surface_parameters.traceMaxSeeds; i++){
+        if (traceRibbon(i % (m_advancing_front.size() - 1), addition, remove, ripping))
+            ;//i++;
     }
 
     float computationTime = ((float)(clock() - streamComputation_start) / CLOCKS_PER_SEC) * 1000.0f;
-    std::cout << "Computation Time: " << computationTime << " and per line is " << computationTime / lines << std::endl;
-    std::cout << "Number of Computed Stream lines: " << lines << std::endl;
-    // lines_per_sec = lines/timer.GetSecondes();
+    std::cout << "Computation Time: " << computationTime << std::endl;
+
+    // compute normals
+    /*for (size_t i = 0; i < m_streamLines.size(); i++){
+
+    }*/
 }
 
 bool StreamTracer::seedIsValid(glm::vec3 seed) {
@@ -296,6 +363,84 @@ void StreamTracer::getParameters( SurfaceParameters &parameters )
 void StreamTracer::setParameters( const SurfaceParameters &paramters )
 {
     m_surface_parameters = paramters;
+}
+
+std::vector<glm::vec3> StreamTracer::getVertices(){
+    return m_vertices;
+}
+
+std::vector<glm::vec3> StreamTracer::getDerivatives(){
+    return m_derivaties;
+}
+
+std::vector<float> StreamTracer::getTexCoords(){
+    return m_texCoords;
+}
+
+std::vector<unsigned int> StreamTracer::getFaceIndices(){
+    return m_faces;
+}
+
+std::vector<glm::vec3> StreamTracer::getSeedingPoints(){
+    return m_surface_parameters.seedingPoints;
+}
+
+std::vector<glm::vec3> StreamTracer::getAABB(){
+    std::vector<glm::vec3> points;
+
+    glm::vec3 min_point(m_sceneBox.min[0], m_sceneBox.min[1], m_sceneBox.min[2]);
+    glm::vec3 max_point(m_sceneBox.max[0], m_sceneBox.max[1], m_sceneBox.max[2]);
+
+    // 1
+    points.push_back(glm::vec3(min_point.x, min_point.y, min_point.z));
+    points.push_back(glm::vec3(max_point.x, min_point.y, min_point.z));
+
+    // 2
+    points.push_back(glm::vec3(min_point.x, min_point.y, min_point.z));
+    points.push_back(glm::vec3(min_point.x, max_point.y, min_point.z));
+
+    // 3
+    points.push_back(glm::vec3(min_point.x, min_point.y, min_point.z));
+    points.push_back(glm::vec3(min_point.x, min_point.y, max_point.z));
+
+    // 4
+    points.push_back(glm::vec3(max_point.x, max_point.y, max_point.z)); 
+    points.push_back(glm::vec3(min_point.x, max_point.y, max_point.z));
+
+    // 5
+    points.push_back(glm::vec3(max_point.x, max_point.y, max_point.z));
+    points.push_back(glm::vec3(max_point.x, min_point.y, max_point.z));
+
+    // 6
+    points.push_back(glm::vec3(max_point.x, max_point.y, max_point.z));
+    points.push_back(glm::vec3(max_point.x, max_point.y, min_point.z));
+
+
+    // 7
+    points.push_back(glm::vec3(min_point.x, min_point.y, max_point.z));
+    points.push_back(glm::vec3(max_point.x, min_point.y, max_point.z));
+
+    // 8
+    points.push_back(glm::vec3(min_point.x, min_point.y, max_point.z));
+    points.push_back(glm::vec3(min_point.x, max_point.y, max_point.z));
+
+    // 9
+    points.push_back(glm::vec3(min_point.x, max_point.y, min_point.z));
+    points.push_back(glm::vec3(max_point.x, max_point.y, min_point.z));
+
+    // 10
+    points.push_back(glm::vec3(min_point.x, max_point.y, min_point.z));
+    points.push_back(glm::vec3(min_point.x, max_point.y, max_point.z));
+
+    // 11
+    points.push_back(glm::vec3(max_point.x, min_point.y, min_point.z));
+    points.push_back(glm::vec3(max_point.x, min_point.y, max_point.z));
+
+    // 12
+    points.push_back(glm::vec3(max_point.x, min_point.y, min_point.z));
+    points.push_back(glm::vec3(max_point.x, max_point.y, min_point.z));
+
+    return points;
 }
 
 bool StreamTracer::loadBinary( std::string filename )
@@ -348,4 +493,19 @@ bool StreamTracer::saveBinary( std::string filename )
     }
 
     return !!out;
+}
+
+void StreamTracer::generateSeedingPoints() {
+    glm::vec3 line_direction(0.0f, 0.0f, 1.0f);
+    boost::random::mt19937 rng;
+    boost::random::uniform_real_distribution<> dist(-0.5f, +0.5f);
+    float len = .4f;
+    for (size_t s = 0; s < m_surface_parameters.traceMaxSeeds; s++){
+        glm::vec3 seed;
+        //do
+        seed = m_surface_parameters.seedingLineCenter + (s * len / m_surface_parameters.traceMaxSeeds - .2f) * m_surface_parameters.seedingLineDirection;
+        //while (!seedIsValid(seed));
+        if (seedIsValid(seed))
+            m_surface_parameters.seedingPoints.push_back(seed);
+    }
 }

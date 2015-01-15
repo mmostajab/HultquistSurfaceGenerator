@@ -39,6 +39,10 @@ public:
     // Seeding plane
     float           seedingline_center[3];
     float           seedingline_dir[3];
+
+    bool            tracing_addition;
+    bool            tracing_remove; 
+    bool            tracing_ripping;
 };
 
 #endif

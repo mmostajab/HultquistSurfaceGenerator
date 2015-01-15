@@ -63,6 +63,8 @@ private:
     StreamSurfaceRenderer m_streamtracer_renderer;
     static Camera m_camera;
     unsigned int m_nVertices;
+    
+    bool m_addition, m_ripping, m_remove;
 };
 
 #endif
